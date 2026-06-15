@@ -1,17 +1,16 @@
-import { Router } from 'express';
-import { UsuariosController, registerSchema, loginSchema } from '../controllers/usuariosController';
-import { validateBody } from '../middlewares/validate';
-
-const router = Router();
-const controller = new UsuariosController();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const usuariosController_1 = require("../controllers/usuariosController");
+const validate_1 = require("../middlewares/validate");
+const router = (0, express_1.Router)();
+const controller = new usuariosController_1.UsuariosController();
 /**
  * @openapi
  * tags:
  *   name: Usuarios
  *   description: Endpoints para la gestión de usuarios y autenticación
  */
-
 /**
  * @openapi
  * /api/usuarios/register:
@@ -70,8 +69,7 @@ const controller = new UsuariosController();
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/register', validateBody(registerSchema), (req, res) => controller.register(req, res));
-
+router.post('/register', (0, validate_1.validateBody)(usuariosController_1.registerSchema), (req, res) => controller.register(req, res));
 /**
  * @openapi
  * /api/usuarios/login:
@@ -124,6 +122,5 @@ router.post('/register', validateBody(registerSchema), (req, res) => controller.
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/login', validateBody(loginSchema), (req, res) => controller.login(req, res));
-
-export default router;
+router.post('/login', (0, validate_1.validateBody)(usuariosController_1.loginSchema), (req, res) => controller.login(req, res));
+exports.default = router;

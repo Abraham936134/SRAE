@@ -1,22 +1,20 @@
-import { Router } from 'express';
-import { RubricasController, rubricaSchema, cloneSchema } from '../controllers/rubricasController';
-import { authMiddleware } from '../middlewares/auth';
-import { rolesMiddleware } from '../middlewares/roles';
-import { validateBody } from '../middlewares/validate';
-
-const router = Router();
-const controller = new RubricasController();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const rubricasController_1 = require("../controllers/rubricasController");
+const auth_1 = require("../middlewares/auth");
+const roles_1 = require("../middlewares/roles");
+const validate_1 = require("../middlewares/validate");
+const router = (0, express_1.Router)();
+const controller = new rubricasController_1.RubricasController();
 /**
  * @openapi
  * tags:
  *   name: Rubricas
  *   description: Endpoints para la gestión y creación de rúbricas analíticas
  */
-
 // All routes require authentication
-router.use(authMiddleware);
-
+router.use(auth_1.authMiddleware);
 /**
  * @openapi
  * /api/rubricas:
@@ -55,7 +53,6 @@ router.use(authMiddleware);
  *         description: Error interno del servidor
  */
 router.get('/', (req, res) => controller.listActive(req, res));
-
 /**
  * @openapi
  * /api/rubricas/{id}:
@@ -87,7 +84,6 @@ router.get('/', (req, res) => controller.listActive(req, res));
  *         description: Error interno del servidor
  */
 router.get('/:id', (req, res) => controller.getById(req, res));
-
 /**
  * @openapi
  * /api/rubricas/{id}/historial:
@@ -119,10 +115,8 @@ router.get('/:id', (req, res) => controller.getById(req, res));
  *         description: Error interno del servidor
  */
 router.get('/:id/historial', (req, res) => controller.getHistory(req, res));
-
 // Modify/Write endpoints require 'docente' or 'administrador' roles
-const authorRoles = rolesMiddleware(['docente', 'administrador']);
-
+const authorRoles = (0, roles_1.rolesMiddleware)(['docente', 'administrador']);
 /**
  * @openapi
  * /api/rubricas:
@@ -190,8 +184,7 @@ const authorRoles = rolesMiddleware(['docente', 'administrador']);
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/', authorRoles, validateBody(rubricaSchema), (req, res) => controller.create(req, res));
-
+router.post('/', authorRoles, (0, validate_1.validateBody)(rubricasController_1.rubricaSchema), (req, res) => controller.create(req, res));
 /**
  * @openapi
  * /api/rubricas/{id}:
@@ -229,8 +222,7 @@ router.post('/', authorRoles, validateBody(rubricaSchema), (req, res) => control
  *       500:
  *         description: Error interno del servidor
  */
-router.put('/:id', authorRoles, validateBody(rubricaSchema), (req, res) => controller.update(req, res));
-
+router.put('/:id', authorRoles, (0, validate_1.validateBody)(rubricasController_1.rubricaSchema), (req, res) => controller.update(req, res));
 /**
  * @openapi
  * /api/rubricas/clone:
@@ -265,8 +257,7 @@ router.put('/:id', authorRoles, validateBody(rubricaSchema), (req, res) => contr
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/clone', authorRoles, validateBody(cloneSchema), (req, res) => controller.clone(req, res));
-
+router.post('/clone', authorRoles, (0, validate_1.validateBody)(rubricasController_1.cloneSchema), (req, res) => controller.clone(req, res));
 /**
  * @openapi
  * /api/rubricas/{id}:
@@ -295,5 +286,4 @@ router.post('/clone', authorRoles, validateBody(cloneSchema), (req, res) => cont
  *         description: Error interno del servidor
  */
 router.delete('/:id', authorRoles, (req, res) => controller.archive(req, res));
-
-export default router;
+exports.default = router;

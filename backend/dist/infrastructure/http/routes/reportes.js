@@ -1,20 +1,18 @@
-import { Router } from 'express';
-import { ReportesController } from '../controllers/reportesController';
-import { authMiddleware } from '../middlewares/auth';
-
-const router = Router();
-const controller = new ReportesController();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const reportesController_1 = require("../controllers/reportesController");
+const auth_1 = require("../middlewares/auth");
+const router = (0, express_1.Router)();
+const controller = new reportesController_1.ReportesController();
 /**
  * @openapi
  * tags:
  *   name: Reportes
  *   description: Endpoints para la obtención y exportación de reportes de evaluaciones
  */
-
 // Auth required for report access
-router.use(authMiddleware);
-
+router.use(auth_1.authMiddleware);
 /**
  * @openapi
  * /api/reportes/{rubricaId}/stats:
@@ -46,7 +44,6 @@ router.use(authMiddleware);
  *         description: Error interno del servidor
  */
 router.get('/:rubricaId/stats', (req, res) => controller.getStats(req, res));
-
 /**
  * @openapi
  * /api/reportes/{rubricaId}/pdf:
@@ -78,7 +75,6 @@ router.get('/:rubricaId/stats', (req, res) => controller.getStats(req, res));
  *         description: Error interno del servidor
  */
 router.get('/:rubricaId/pdf', (req, res) => controller.exportPDF(req, res));
-
 /**
  * @openapi
  * /api/reportes/{rubricaId}/excel:
@@ -110,5 +106,4 @@ router.get('/:rubricaId/pdf', (req, res) => controller.exportPDF(req, res));
  *         description: Error interno del servidor
  */
 router.get('/:rubricaId/excel', (req, res) => controller.exportExcel(req, res));
-
-export default router;
+exports.default = router;

@@ -1,21 +1,19 @@
-import { Router } from 'express';
-import { EvaluacionesController, aplicarEvaluacionSchema } from '../controllers/evaluacionesController';
-import { authMiddleware } from '../middlewares/auth';
-import { validateBody } from '../middlewares/validate';
-
-const router = Router();
-const controller = new EvaluacionesController();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const evaluacionesController_1 = require("../controllers/evaluacionesController");
+const auth_1 = require("../middlewares/auth");
+const validate_1 = require("../middlewares/validate");
+const router = (0, express_1.Router)();
+const controller = new evaluacionesController_1.EvaluacionesController();
 /**
  * @openapi
  * tags:
  *   name: Evaluaciones
  *   description: Endpoints para aplicar y guardar evaluaciones de estudiantes
  */
-
 // Authentication required to apply evaluations
-router.use(authMiddleware);
-
+router.use(auth_1.authMiddleware);
 /**
  * @openapi
  * /api/evaluaciones:
@@ -74,6 +72,5 @@ router.use(authMiddleware);
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/', validateBody(aplicarEvaluacionSchema), (req, res) => controller.apply(req, res));
-
-export default router;
+router.post('/', (0, validate_1.validateBody)(evaluacionesController_1.aplicarEvaluacionSchema), (req, res) => controller.apply(req, res));
+exports.default = router;
