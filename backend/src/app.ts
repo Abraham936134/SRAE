@@ -49,8 +49,7 @@ const swaggerOptions = {
   apis: [
     './src/infrastructure/http/routes/*.ts',
     './dist/src/infrastructure/http/routes/*.js',
-    './src/app.ts',
-    './dist/src/app.js'
+    `${__dirname}/infrastructure/http/routes/*.js`,
   ],
 };
 
