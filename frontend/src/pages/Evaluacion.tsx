@@ -5,6 +5,7 @@ import { Rubrica, Nivel, Evaluacion as IEvaluacion, RespuestaCriterio } from '..
 import { mockRubricas, mockEstudiantes, mockActividades, mockEvaluaciones } from '../mock/data';
 import { Save, User, BookOpen, Award, CheckCircle, AlertTriangle, AlertCircle, Sparkles, HelpCircle } from 'lucide-react';
 import { applyEvaluacion } from '../api/evaluaciones';
+import { getRubricas } from '../api/rubricas';
 
 export const Evaluacion: React.FC = () => {
   const navigate = useNavigate();
@@ -21,23 +22,35 @@ export const Evaluacion: React.FC = () => {
   const [seleccionados, setSeleccionados] = useState<Record<string, Nivel>>({});
 
   useEffect(() => {
-    const stored = localStorage.getItem('rubricas');
-    const rubricasList: Rubrica[] = stored ? JSON.parse(stored) : mockRubricas;
-    const activeOnes = rubricasList.filter((r) => r.activa);
-    setRubricas(activeOnes);
+    const loadData = async () => {
+      let activeOnes: Rubrica[] = [];
+      try {
+        const backendRubrics = await getRubricas();
+        activeOnes = backendRubrics.filter((r) => r.activa);
+        localStorage.setItem('rubricas', JSON.stringify(backendRubrics));
+      } catch (err) {
+        console.warn('Backend offline or failed to fetch rubrics. Loading from localStorage instead.', err);
+        const stored = localStorage.getItem('rubricas');
+        const rubricasList: Rubrica[] = stored ? JSON.parse(stored) : mockRubricas;
+        activeOnes = rubricasList.filter((r) => r.activa);
+      }
+      setRubricas(activeOnes);
 
-    if (activeOnes.length > 0) {
-      setSelectedRubricaId(activeOnes[0].id);
-    }
+      if (activeOnes.length > 0) {
+        setSelectedRubricaId(activeOnes[0].id);
+      }
 
-    // Load dynamic students from localStorage
-    const storedEstudiantes = localStorage.getItem('estudiantes');
-    if (storedEstudiantes) {
-      setEstudiantes(JSON.parse(storedEstudiantes));
-    } else {
-      setEstudiantes(mockEstudiantes);
-      localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
-    }
+      // Load dynamic students from localStorage
+      const storedEstudiantes = localStorage.getItem('estudiantes');
+      if (storedEstudiantes) {
+        setEstudiantes(JSON.parse(storedEstudiantes));
+      } else {
+        setEstudiantes(mockEstudiantes);
+        localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
+      }
+    };
+
+    loadData();
   }, []);
 
   useEffect(() => {

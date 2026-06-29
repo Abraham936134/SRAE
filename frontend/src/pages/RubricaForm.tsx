@@ -5,6 +5,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Rubrica, Criterio } from '../types';
 import { CriterioCard } from '../components/CriterioCard';
 import { mockRubricas } from '../mock/data';
+import { getRubricaById, createRubrica, updateRubrica } from '../api/rubricas';
 
 export interface NivelInput {
   descripcion: string;
@@ -28,48 +29,74 @@ export const RubricaForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('rubricas');
-    const rubricasList: Rubrica[] = stored ? JSON.parse(stored) : mockRubricas;
+    const loadRubrica = async () => {
+      if (isEditMode && id) {
+        try {
+          const rubric = await getRubricaById(id);
+          if (!rubric.activa) {
+            alert('No se puede editar una rúbrica archivada');
+            navigate('/rubricas');
+            return;
+          }
 
-    if (isEditMode && id) {
-      const rubric = rubricasList.find((r) => r.id === id);
-      if (rubric) {
-        if (!rubric.activa) {
-          alert('No se puede editar una rúbrica archivada');
-          navigate('/rubricas');
-          return;
+          setTitulo(rubric.titulo);
+          setDescripcion(rubric.descripcion);
+          setCriterios(
+            rubric.criterios.map((c) => ({
+              descripcion: c.descripcion,
+              ponderacion: c.ponderacion,
+              niveles: c.niveles.map((n) => ({
+                descripcion: n.descripcion,
+                puntos: n.puntos,
+              })),
+            }))
+          );
+        } catch (err) {
+          console.warn('Backend failed to load rubric by ID. Trying localStorage instead.', err);
+          const stored = localStorage.getItem('rubricas');
+          const rubricasList: Rubrica[] = stored ? JSON.parse(stored) : mockRubricas;
+          const rubric = rubricasList.find((r) => r.id === id);
+          if (rubric) {
+            if (!rubric.activa) {
+              alert('No se puede editar una rúbrica archivada');
+              navigate('/rubricas');
+              return;
+            }
+
+            setTitulo(rubric.titulo);
+            setDescripcion(rubric.descripcion);
+            setCriterios(
+              rubric.criterios.map((c) => ({
+                descripcion: c.descripcion,
+                ponderacion: c.ponderacion,
+                niveles: c.niveles.map((n) => ({
+                  descripcion: n.descripcion,
+                  puntos: n.puntos,
+                })),
+              }))
+            );
+          } else {
+            setError('La rúbrica seleccionada no existe');
+          }
         }
-
-        setTitulo(rubric.titulo);
-        setDescripcion(rubric.descripcion);
-        setCriterios(
-          rubric.criterios.map((c) => ({
-            descripcion: c.descripcion,
-            ponderacion: c.ponderacion,
-            niveles: c.niveles.map((n) => ({
-              descripcion: n.descripcion,
-              puntos: n.puntos,
-            })),
-          }))
-        );
       } else {
-        setError('La rúbrica seleccionada no existe');
+        // Create mode - initialize with one empty criterion
+        setCriterios([
+          {
+            descripcion: '',
+            ponderacion: 100,
+            niveles: [
+              { descripcion: 'Excelente', puntos: 20 },
+              { descripcion: 'Bueno', puntos: 15 },
+              { descripcion: 'Regular', puntos: 10 },
+              { descripcion: 'Deficiente', puntos: 5 },
+            ],
+          },
+        ]);
       }
-    } else {
-      // Create mode - initialize with one empty criterion
-      setCriterios([
-        {
-          descripcion: '',
-          ponderacion: 100,
-          niveles: [
-            { descripcion: 'Excelente', puntos: 20 },
-            { descripcion: 'Bueno', puntos: 15 },
-            { descripcion: 'Regular', puntos: 10 },
-            { descripcion: 'Deficiente', puntos: 5 },
-          ],
-        },
-      ]);
-    }
+    };
+
+    loadRubrica();
   }, [id, isEditMode, navigate]);
 
   const totalWeight = criterios.reduce((sum, c) => sum + (c.ponderacion || 0), 0);
@@ -101,84 +128,123 @@ export const RubricaForm: React.FC = () => {
     setCriterios(criterios.filter((_, idx) => idx !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isWeightValid) {
       alert('La suma de ponderaciones debe ser exactamente 100%');
       return;
     }
 
+    const payload = {
+      titulo,
+      descripcion,
+      criterios,
+    };
+
     const stored = localStorage.getItem('rubricas');
     const rubricasList: Rubrica[] = stored ? JSON.parse(stored) : mockRubricas;
 
+    const saveLocally = (newOrUpdatedRubric: Rubrica, isEdit: boolean) => {
+      let updatedList: Rubrica[] = [];
+      if (isEdit) {
+        updatedList = rubricasList.map((r) => (r.id === id ? newOrUpdatedRubric : r));
+      } else {
+        updatedList = [newOrUpdatedRubric, ...rubricasList];
+      }
+      localStorage.setItem('rubricas', JSON.stringify(updatedList));
+    };
+
     if (isEditMode && id) {
-      // Update logic (Increment version)
-      const updatedList = rubricasList.map((r) => {
-        if (r.id === id) {
-          const updatedVersion = r.version + 1;
-          const mappedCriterios: Criterio[] = criterios.map((cInput, cIdx) => {
-            const criterioId = `crit-${id}-${cIdx}-${Date.now()}`;
-            return {
-              id: criterioId,
-              rubricaId: r.id,
-              descripcion: cInput.descripcion,
-              ponderacion: cInput.ponderacion,
-              niveles: cInput.niveles.map((nInput, nIdx) => ({
-                id: `niv-${criterioId}-${nIdx}-${Date.now()}`,
-                criterioId,
-                descripcion: nInput.descripcion,
-                puntos: nInput.puntos,
-              })),
-            };
-          });
-
-          return {
-            ...r,
-            titulo,
-            descripcion,
-            version: updatedVersion,
-            criterios: mappedCriterios,
-          };
+      try {
+        const updated = await updateRubrica(id, payload);
+        saveLocally(updated, true);
+        alert('Rúbrica actualizada con éxito en el backend. Se ha generado una nueva versión.');
+      } catch (err: any) {
+        if (err.response && err.response.data && err.response.data.error) {
+          alert(`Error del servidor al actualizar: ${err.response.data.error}`);
+          return;
         }
-        return r;
-      });
 
-      localStorage.setItem('rubricas', JSON.stringify(updatedList));
-      alert('Rúbrica actualizada con éxito. Se ha generado una nueva versión.');
-    } else {
-      // Create logic
-      const newId = `rubrica-new-${Date.now()}`;
-      const mappedCriterios: Criterio[] = criterios.map((cInput, cIdx) => {
-        const criterioId = `crit-${newId}-${cIdx}-${Date.now()}`;
-        return {
-          id: criterioId,
-          rubricaId: newId,
-          descripcion: cInput.descripcion,
-          ponderacion: cInput.ponderacion,
-          niveles: cInput.niveles.map((nInput, nIdx) => ({
-            id: `niv-${criterioId}-${nIdx}-${Date.now()}`,
-            criterioId,
-            descripcion: nInput.descripcion,
-            puntos: nInput.puntos,
-          })),
+        console.warn('Backend failed or offline. Saving rubric locally to localStorage.', err);
+        const existing = rubricasList.find((r) => r.id === id);
+        const updatedVersion = existing ? existing.version + 1 : 1;
+        const mappedCriterios: Criterio[] = criterios.map((cInput, cIdx) => {
+          const criterioId = `crit-${id}-${cIdx}-${Date.now()}`;
+          return {
+            id: criterioId,
+            rubricaId: id,
+            descripcion: cInput.descripcion,
+            ponderacion: cInput.ponderacion,
+            niveles: cInput.niveles.map((nInput, nIdx) => ({
+              id: `niv-${criterioId}-${nIdx}-${Date.now()}`,
+              criterioId,
+              descripcion: nInput.descripcion,
+              puntos: nInput.puntos,
+            })),
+          };
+        });
+
+        const updatedRubric: Rubrica = {
+          id,
+          titulo,
+          descripcion,
+          version: updatedVersion,
+          activa: true,
+          creadoPor: existing?.creadoPor || 'docente-uuid-1',
+          idOriginal: existing?.idOriginal || null,
+          fechaCreacion: existing?.fechaCreacion || new Date().toISOString(),
+          criterios: mappedCriterios,
         };
-      });
 
-      const newRubrica: Rubrica = {
-        id: newId,
-        titulo,
-        descripcion,
-        version: 1,
-        activa: true,
-        creadoPor: 'docente-uuid-1',
-        idOriginal: null,
-        fechaCreacion: new Date().toISOString(),
-        criterios: mappedCriterios,
-      };
+        saveLocally(updatedRubric, true);
+        alert('Rúbrica actualizada localmente en el navegador (servidor offline). Se ha generado una nueva versión.');
+      }
+    } else {
+      // Create mode
+      try {
+        const created = await createRubrica(payload);
+        saveLocally(created, false);
+        alert('Rúbrica creada con éxito en el backend.');
+      } catch (err: any) {
+        if (err.response && err.response.data && err.response.data.error) {
+          alert(`Error del servidor al crear: ${err.response.data.error}`);
+          return;
+        }
 
-      const updatedList = [newRubrica, ...rubricasList];
-      localStorage.setItem('rubricas', JSON.stringify(updatedList));
-      alert('Rúbrica creada con éxito.');
+        console.warn('Backend offline or failed to create rubric. Saving locally to localStorage.', err);
+
+        const newId = `rubrica-new-${Date.now()}`;
+        const mappedCriterios: Criterio[] = criterios.map((cInput, cIdx) => {
+          const criterioId = `crit-${newId}-${cIdx}-${Date.now()}`;
+          return {
+            id: criterioId,
+            rubricaId: newId,
+            descripcion: cInput.descripcion,
+            ponderacion: cInput.ponderacion,
+            niveles: cInput.niveles.map((nInput, nIdx) => ({
+              id: `niv-${criterioId}-${nIdx}-${Date.now()}`,
+              criterioId,
+              descripcion: nInput.descripcion,
+              puntos: nInput.puntos,
+            })),
+          };
+        });
+
+        const newRubrica: Rubrica = {
+          id: newId,
+          titulo,
+          descripcion,
+          version: 1,
+          activa: true,
+          creadoPor: 'docente-uuid-1',
+          idOriginal: null,
+          fechaCreacion: new Date().toISOString(),
+          criterios: mappedCriterios,
+        };
+
+        saveLocally(newRubrica, false);
+        alert('Rúbrica creada con éxito localmente (servidor offline).');
+      }
     }
 
     navigate('/rubricas');

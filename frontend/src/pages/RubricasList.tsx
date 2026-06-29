@@ -13,6 +13,7 @@ import {
   Filter,
   X
 } from 'lucide-react';
+import { getRubricas, cloneRubrica, archiveRubrica } from '../api/rubricas';
 
 export const RubricasList: React.FC = () => {
   const [rubricas, setRubricas] = useState<Rubrica[]>([]);
@@ -23,14 +24,25 @@ export const RubricasList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'archived', 'draft'
   const [authorFilter, setAuthorFilter] = useState('all'); // 'all', 'docente-uuid-1'
 
-  useEffect(() => {
-    const stored = localStorage.getItem('rubricas');
-    if (stored) {
-      setRubricas(JSON.parse(stored));
-    } else {
-      setRubricas(mockRubricas);
-      localStorage.setItem('rubricas', JSON.stringify(mockRubricas));
+  const loadRubricas = async () => {
+    try {
+      const data = await getRubricas();
+      setRubricas(data);
+      localStorage.setItem('rubricas', JSON.stringify(data));
+    } catch (err) {
+      console.warn('Backend offline or failed to fetch rubrics. Loading from localStorage instead.', err);
+      const stored = localStorage.getItem('rubricas');
+      if (stored) {
+        setRubricas(JSON.parse(stored));
+      } else {
+        setRubricas(mockRubricas);
+        localStorage.setItem('rubricas', JSON.stringify(mockRubricas));
+      }
     }
+  };
+
+  useEffect(() => {
+    loadRubricas();
   }, []);
 
   const getStatusBadge = (r: Rubrica) => {
@@ -55,40 +67,70 @@ export const RubricasList: React.FC = () => {
     );
   };
 
-  const handleClone = (r: Rubrica) => {
-    const cloned: Rubrica = {
-      ...r,
-      id: `rubrica-clon-${Date.now()}`,
-      titulo: `${r.titulo.replace(' (Clonada)', '')} (Clonada)`,
-      version: 1.0,
-      activa: true,
-      idOriginal: r.id,
-      fechaCreacion: new Date().toISOString(),
-      criterios: r.criterios.map((c) => ({
-        ...c,
-        id: `crit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        rubricaId: `rubrica-clon-${Date.now()}`,
-        niveles: c.niveles.map((n) => ({
-          ...n,
-          id: `niv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+  const handleClone = async (r: Rubrica) => {
+    try {
+      // Call actual backend clone API
+      const cloned = await cloneRubrica(r.id);
+      const newList = [cloned, ...rubricas];
+      setRubricas(newList);
+      localStorage.setItem('rubricas', JSON.stringify(newList));
+      alert(`[CONECTADO AL SERVIDOR] Rúbrica "${r.titulo}" clonada exitosamente en el backend.`);
+    } catch (err) {
+      console.warn('Failed to clone on backend. Falling back to local cloning in browser.', err);
+      
+      const clonedLocal: Rubrica = {
+        ...r,
+        id: `rubrica-clon-${Date.now()}`,
+        titulo: `${r.titulo.replace(' (Clonada)', '')} (Clonada)`,
+        version: 1.0,
+        activa: true,
+        idOriginal: r.id,
+        fechaCreacion: new Date().toISOString(),
+        criterios: r.criterios.map((c) => ({
+          ...c,
+          id: `crit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          rubricaId: `rubrica-clon-${Date.now()}`,
+          niveles: c.niveles.map((n) => ({
+            ...n,
+            id: `niv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          })),
         })),
-      })),
-    };
+      };
 
-    const newList = [cloned, ...rubricas];
-    setRubricas(newList);
-    localStorage.setItem('rubricas', JSON.stringify(newList));
+      const newList = [clonedLocal, ...rubricas];
+      setRubricas(newList);
+      localStorage.setItem('rubricas', JSON.stringify(newList));
+      alert(`[MODO OFFLINE] Servidor desconectado. La rúbrica fue clonada localmente.`);
+    }
   };
 
-  const handleArchive = (id: string) => {
-    const newList = rubricas.map((r) => {
-      if (r.id === id) {
-        return { ...r, activa: false };
-      }
-      return r;
-    });
-    setRubricas(newList);
-    localStorage.setItem('rubricas', JSON.stringify(newList));
+  const handleArchive = async (id: string) => {
+    try {
+      // Call actual backend archive API
+      await archiveRubrica(id);
+      
+      const newList = rubricas.map((r) => {
+        if (r.id === id) {
+          return { ...r, activa: false };
+        }
+        return r;
+      });
+      setRubricas(newList);
+      localStorage.setItem('rubricas', JSON.stringify(newList));
+      alert('[CONECTADO AL SERVIDOR] Rúbrica archivada con éxito en el backend (soft delete).');
+    } catch (err) {
+      console.warn('Failed to archive on backend. Archiving locally in browser.', err);
+      
+      const newList = rubricas.map((r) => {
+        if (r.id === id) {
+          return { ...r, activa: false };
+        }
+        return r;
+      });
+      setRubricas(newList);
+      localStorage.setItem('rubricas', JSON.stringify(newList));
+      alert('[MODO OFFLINE] Servidor desconectado. Rúbrica archivada localmente.');
+    }
   };
 
   // Filter computation

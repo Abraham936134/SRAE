@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Usuario } from '../types';
 import { Eye, EyeOff, Lock, Mail, Users, GraduationCap, Award, HelpCircle } from 'lucide-react';
+import { loginUser } from '../api/usuarios';
 
 export const Login: React.FC = () => {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
@@ -14,55 +15,77 @@ export const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
+    const identifier = usernameOrEmail.trim();
+
     try {
-      setTimeout(() => {
-        const identifier = usernameOrEmail.trim().toLowerCase();
-        let mockUser: Usuario = {
-          id: 'mock-docente-uuid-1',
-          nombre: 'Abraham Alva (Docente)',
-          email: 'abraham.alva@urp.edu.pe',
-          rol: 'docente',
-        };
+      // Attempt backend authentication
+      const result = await loginUser({
+        email: identifier,
+        password: password,
+      });
 
-        // Multi-role credentials mapping based on username or email input
-        if (identifier === 'admin' || identifier === 'admin@urp.edu.pe') {
-          mockUser = {
-            id: 'mock-admin-uuid-1',
-            nombre: 'Administrador General',
-            email: 'admin@urp.edu.pe',
-            rol: 'administrador' as const,
-          };
-        } else if (identifier === 'auxiliar' || identifier === 'auxiliar@urp.edu.pe') {
-          mockUser = {
-            id: 'mock-aux-uuid-1',
-            nombre: 'Coordinador de Escuela (Auxiliar)',
-            email: 'auxiliar@urp.edu.pe',
-            rol: 'auxiliar' as const,
-          };
-        } else {
-          // Default or custom input
-          mockUser = {
-            id: 'mock-docente-uuid-1',
-            nombre: identifier.includes('docente') ? 'Docente de Turno' : 'Abraham Alva (Docente)',
-            email: identifier.includes('@') ? identifier : `${identifier}@urp.edu.pe`,
-            rol: 'docente' as const,
-          };
-        }
-
-        const mockToken = 'mock-jwt-token-string-xyz-12345';
-        
-        login(mockToken, mockUser);
-        setIsLoading(false);
-        navigate('/dashboard');
-      }, 600);
-    } catch (err: any) {
-      setError('Credenciales inválidas. Por favor intenta de nuevo.');
+      // Successful backend login
+      login(result.token, result.user);
       setIsLoading(false);
+      navigate('/dashboard');
+    } catch (err: any) {
+      // If it's a validation error or incorrect credentials from active backend, display it
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      // If backend is offline or network error, fall back to offline mock mode
+      console.warn('Backend authentication failed or server offline. Using offline localStorage fallback.', err);
+
+      try {
+        setTimeout(() => {
+          const lowerIdentifier = identifier.toLowerCase();
+          let mockUser: Usuario = {
+            id: 'mock-docente-uuid-1',
+            nombre: 'Abraham Alva (Docente)',
+            email: 'abraham.alva@urp.edu.pe',
+            rol: 'docente',
+          };
+
+          if (lowerIdentifier === 'admin' || lowerIdentifier === 'admin@urp.edu.pe') {
+            mockUser = {
+              id: 'mock-admin-uuid-1',
+              nombre: 'Administrador General',
+              email: 'admin@urp.edu.pe',
+              rol: 'administrador' as const,
+            };
+          } else if (lowerIdentifier === 'auxiliar' || lowerIdentifier === 'auxiliar@urp.edu.pe') {
+            mockUser = {
+              id: 'mock-aux-uuid-1',
+              nombre: 'Coordinador de Escuela (Auxiliar)',
+              email: 'auxiliar@urp.edu.pe',
+              rol: 'auxiliar' as const,
+            };
+          } else {
+            mockUser = {
+              id: 'mock-docente-uuid-1',
+              nombre: lowerIdentifier.includes('docente') ? 'Docente de Turno' : 'Abraham Alva (Docente)',
+              email: lowerIdentifier.includes('@') ? lowerIdentifier : `${lowerIdentifier}@urp.edu.pe`,
+              rol: 'docente' as const,
+            };
+          }
+
+          const mockToken = 'mock-jwt-token-string-xyz-12345';
+          login(mockToken, mockUser);
+          setIsLoading(false);
+          navigate('/dashboard');
+        }, 600);
+      } catch (innerErr) {
+        setError('Error al iniciar sesión localmente.');
+        setIsLoading(false);
+      }
     }
   };
 

@@ -1,6 +1,6 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
-import { mockEvaluaciones, mockActividades } from '../mock/data';
+import { mockEvaluaciones, mockActividades, mockRubricas } from '../mock/data';
 import { 
   BarChart3, 
   FileSpreadsheet, 
@@ -11,9 +11,13 @@ import {
   Filter, 
   Download, 
   AlertTriangle, 
-  Sparkles
+  Sparkles,
+  CheckCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { getReporteStats, exportReportePDF, exportReporteExcel } from '../api/reportes';
+import { getRubricas } from '../api/rubricas';
+import { Rubrica } from '../types';
 
 type TabType = 'stats' | 'pdf' | 'excel';
 
@@ -23,43 +27,140 @@ export const Reportes: React.FC = () => {
   const [selectedActividad, setSelectedActividad] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('stats');
 
+  const [rubricas, setRubricas] = useState<Rubrica[]>([]);
+  const [selectedRubricaId, setSelectedRubricaId] = useState('');
+  const [backendStats, setBackendStats] = useState<any | null>(null);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [isBackendOnline, setIsBackendOnline] = useState(false);
+
   // Load from local storage or mock data
   useEffect(() => {
-    const storedEvals = localStorage.getItem('evaluaciones');
-    const evalsList: any[] = storedEvals ? JSON.parse(storedEvals) : mockEvaluaciones;
+    const loadData = async () => {
+      // 1. Load rubrics
+      let rubricsList: Rubrica[] = [];
+      try {
+        rubricsList = await getRubricas();
+        localStorage.setItem('rubricas', JSON.stringify(rubricsList));
+      } catch (err) {
+        console.warn('Backend offline or failed to fetch rubrics for reports. Loading local storage.', err);
+        const stored = localStorage.getItem('rubricas');
+        rubricsList = stored ? JSON.parse(stored) : mockRubricas;
+      }
+      setRubricas(rubricsList);
+      if (rubricsList.length > 0) {
+        setSelectedRubricaId(rubricsList[0].id);
+      }
 
-    // Map each evaluation to its activity
-    const mapped = evalsList.map((e) => {
-      const storedActivity = localStorage.getItem(`eval-actividad-${e.id}`);
-      return {
-        ...e,
-        actividad: storedActivity || mockActividades[Math.floor(Math.random() * mockActividades.length)],
-      };
-    });
+      // 2. Load evaluations
+      const storedEvals = localStorage.getItem('evaluaciones');
+      const evalsList: any[] = storedEvals ? JSON.parse(storedEvals) : mockEvaluaciones;
 
-    setEvaluaciones(mapped);
+      // Map each evaluation to its activity
+      const mapped = evalsList.map((e) => {
+        const storedActivity = localStorage.getItem(`eval-actividad-${e.id}`);
+        return {
+          ...e,
+          actividad: storedActivity || mockActividades[Math.floor(Math.random() * mockActividades.length)],
+        };
+      });
 
-    // Get unique list of activities
-    const uniqueActs = Array.from(new Set(mapped.map((e) => e.actividad)));
-    setActividades(uniqueActs);
+      setEvaluaciones(mapped);
+
+      // Get unique list of activities
+      const uniqueActs = Array.from(new Set(mapped.map((e) => e.actividad)));
+      setActividades(uniqueActs);
+    };
+
+    loadData();
   }, []);
+
+  // Fetch backend statistics when rubric selection changes
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!selectedRubricaId) {
+        setBackendStats(null);
+        setBackendError(null);
+        setIsBackendOnline(false);
+        return;
+      }
+
+      try {
+        setBackendError(null);
+        const stats = await getReporteStats(selectedRubricaId);
+        setBackendStats(stats);
+        setIsBackendOnline(true);
+      } catch (err: any) {
+        if (err.response && err.response.status === 404) {
+          setBackendError(err.response.data.error || 'La rúbrica no tiene evaluaciones registradas en el servidor.');
+          setIsBackendOnline(true);
+          setBackendStats(null);
+        } else {
+          console.warn('Backend server offline or failed to fetch report stats.', err);
+          setIsBackendOnline(false);
+          setBackendStats(null);
+          setBackendError(null);
+        }
+      }
+    };
+
+    fetchStats();
+  }, [selectedRubricaId]);
+
+  const handleDownloadPDF = async () => {
+    if (!selectedRubricaId) return;
+    try {
+      const blob = await exportReportePDF(selectedRubricaId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error al descargar el reporte PDF.');
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!selectedRubricaId) return;
+    try {
+      const blob = await exportReporteExcel(selectedRubricaId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error al descargar la matriz Excel.');
+    }
+  };
 
   // Filter evaluations based on activity selection
   const filtered = selectedActividad
     ? evaluaciones.filter((e) => e.actividad === selectedActividad)
     : evaluaciones;
 
-  // Calculate statistics
-  const totalEvals = filtered.length;
-  const promedioGeneral = totalEvals > 0 
-    ? filtered.reduce((sum, e) => sum + e.notaFinal, 0) / totalEvals 
-    : 0;
-  const notaMaxima = totalEvals > 0 
-    ? Math.max(...filtered.map((e) => e.notaFinal)) 
-    : 0;
-  const notaMinima = totalEvals > 0 
-    ? Math.min(...filtered.map((e) => e.notaFinal)) 
-    : 0;
+  // Calculate statistics (uses backendStats if available and online, otherwise local storage fallback)
+  const totalEvals = isBackendOnline && backendStats
+    ? backendStats.totalEvaluaciones
+    : filtered.length;
+
+  const promedioGeneral = isBackendOnline && backendStats
+    ? backendStats.promedioGeneral
+    : (totalEvals > 0 ? filtered.reduce((sum, e) => sum + e.notaFinal, 0) / totalEvals : 0);
+
+  const notaMaxima = isBackendOnline && backendStats
+    ? backendStats.notaMaxima
+    : (totalEvals > 0 ? Math.max(...filtered.map((e) => e.notaFinal)) : 0);
+
+  const notaMinima = isBackendOnline && backendStats
+    ? backendStats.notaMinima
+    : (totalEvals > 0 ? Math.min(...filtered.map((e) => e.notaFinal)) : 0);
 
   // Calculate histogram data (Distribution of grades in Buckets)
   const getHistogramData = () => {
@@ -205,14 +306,33 @@ export const Reportes: React.FC = () => {
                 <Filter size={16} className="text-primary" />
                 <h4 className="font-bold text-secondary text-sm">Filtros y Búsqueda</h4>
               </div>
+              
               <div>
                 <label className="block text-[10px] font-bold text-secondary/60 uppercase tracking-wider mb-2">
-                  Seleccionar Actividad
+                  Seleccionar Rúbrica
+                </label>
+                <select
+                  value={selectedRubricaId}
+                  onChange={(e) => setSelectedRubricaId(e.target.value)}
+                  className="w-full px-3 py-2 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white text-secondary"
+                >
+                  {rubricas.map((rubric) => (
+                    <option key={rubric.id} value={rubric.id}>
+                      {rubric.titulo} (v{rubric.version})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-secondary/60 uppercase tracking-wider mb-2">
+                  Seleccionar Actividad (Vista Local)
                 </label>
                 <select
                   value={selectedActividad}
                   onChange={(e) => setSelectedActividad(e.target.value)}
                   className="w-full px-3 py-2 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white text-secondary"
+                  disabled={isBackendOnline && !backendError}
                 >
                   <option value="">-- Todas las Actividades --</option>
                   {actividades.map((act) => (
@@ -358,20 +478,47 @@ export const Reportes: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-lg text-left text-xs text-amber-800 flex gap-3 max-w-lg mx-auto">
-              <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
-              <div className="space-y-1">
-                <span className="font-bold block">Conectividad de Backend Requerida</span>
-                <span className="block leading-relaxed">
-                  Las exportaciones PDF utilizan bibliotecas de servidor para compilar documentos validados a partir del motor de base de datos Neon. Actualmente el servidor backend se encuentra apagado.
-                </span>
+            {isBackendOnline && !backendError ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-250 text-emerald-800 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <CheckCircle size={18} className="shrink-0 mt-0.5 text-emerald-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Servidor Conectado</span>
+                  <span className="block leading-relaxed">
+                    El backend está en línea. Puede descargar el reporte consolidado directo del servidor para la rúbrica seleccionada.
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : backendError ? (
+              <div className="p-4 bg-amber-50 border border-amber-250 text-amber-800 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Sin Evaluaciones Registradas</span>
+                  <span className="block leading-relaxed">
+                    {backendError}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-amber-50 border border-amber-250 text-amber-850 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Conectividad de Backend Requerida</span>
+                  <span className="block leading-relaxed">
+                    Las exportaciones PDF utilizan bibliotecas de servidor para compilar documentos validados a partir del motor de base de datos Neon. Actualmente el servidor backend se encuentra desconectado.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-center gap-3">
               <button
-                disabled
-                className="px-5 py-2.5 bg-secondary/10 text-secondary/40 font-bold rounded-md text-xs cursor-not-allowed border border-borderLight flex items-center gap-2"
+                disabled={!isBackendOnline || !!backendError}
+                onClick={handleDownloadPDF}
+                className={`px-5 py-2.5 font-bold rounded-md text-xs flex items-center gap-2 border shadow-sm transition-all duration-150 ${
+                  isBackendOnline && !backendError
+                    ? 'bg-red-600 text-white hover:bg-red-700 cursor-pointer border-red-200'
+                    : 'bg-secondary/10 text-secondary/40 cursor-not-allowed border-borderLight opacity-50'
+                }`}
               >
                 <Download size={14} /> Descargar Reporte Completo (PDF)
               </button>
@@ -397,20 +544,47 @@ export const Reportes: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200/60 rounded-lg text-left text-xs text-amber-800 flex gap-3 max-w-lg mx-auto">
-              <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
-              <div className="space-y-1">
-                <span className="font-bold block">Conectividad de Backend Requerida</span>
-                <span className="block leading-relaxed">
-                  Las exportaciones Excel utilizan bibliotecas de servidor para compilar hojas de cálculo validadas a partir de la base de datos Neon. Actualmente el servidor backend se encuentra apagado.
-                </span>
+            {isBackendOnline && !backendError ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-250 text-emerald-800 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <CheckCircle size={18} className="shrink-0 mt-0.5 text-emerald-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Servidor Conectado</span>
+                  <span className="block leading-relaxed">
+                    El backend está en línea. Puede descargar el consolidado tabular en CSV/Excel directo del servidor.
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : backendError ? (
+              <div className="p-4 bg-amber-50 border border-amber-250 text-amber-800 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Sin Evaluaciones Registradas</span>
+                  <span className="block leading-relaxed">
+                    {backendError}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-amber-50 border border-amber-250 text-amber-850 rounded-lg text-left text-xs flex gap-3 max-w-lg mx-auto">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Conectividad de Backend Requerida</span>
+                  <span className="block leading-relaxed">
+                    Las exportaciones Excel utilizan bibliotecas de servidor para compilar hojas de cálculo validadas a partir de la base de datos Neon. Actualmente el servidor backend se encuentra desconectado.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-center gap-3">
               <button
-                disabled
-                className="px-5 py-2.5 bg-secondary/10 text-secondary/40 font-bold rounded-md text-xs cursor-not-allowed border border-borderLight flex items-center gap-2"
+                disabled={!isBackendOnline || !!backendError}
+                onClick={handleDownloadExcel}
+                className={`px-5 py-2.5 font-bold rounded-md text-xs flex items-center gap-2 border shadow-sm transition-all duration-150 ${
+                  isBackendOnline && !backendError
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer border-emerald-200'
+                    : 'bg-secondary/10 text-secondary/40 cursor-not-allowed border-borderLight opacity-50'
+                }`}
               >
                 <Download size={14} /> Descargar Matriz de Notas (XLSX)
               </button>
