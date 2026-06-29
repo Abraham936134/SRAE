@@ -12,6 +12,7 @@ const usuarios_1 = __importDefault(require("./infrastructure/http/routes/usuario
 const rubricas_1 = __importDefault(require("./infrastructure/http/routes/rubricas"));
 const evaluaciones_1 = __importDefault(require("./infrastructure/http/routes/evaluaciones"));
 const reportes_1 = __importDefault(require("./infrastructure/http/routes/reportes"));
+const estudiantes_1 = __importDefault(require("./infrastructure/http/routes/estudiantes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 // Middlewares
@@ -68,6 +69,7 @@ app.use('/api/usuarios', usuarios_1.default);
 app.use('/api/rubricas', rubricas_1.default);
 app.use('/api/evaluaciones', evaluaciones_1.default);
 app.use('/api/reportes', reportes_1.default);
+app.use('/api/estudiantes', estudiantes_1.default);
 // Basic health check route
 app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });

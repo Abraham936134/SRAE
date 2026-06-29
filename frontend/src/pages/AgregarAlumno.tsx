@@ -1,6 +1,7 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Mail, Hash, CheckCircle, Trash2, GraduationCap } from 'lucide-react';
+import { getEstudiantes, createEstudiante, deleteEstudiante } from '../api/estudiantes';
 
 
 interface AlumnoItem {
@@ -27,20 +28,27 @@ export const AgregarAlumno: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('alumnos_list');
-    if (stored) {
-      setAlumnos(JSON.parse(stored));
-    } else {
-      setAlumnos(INITIAL_ALUMNOS);
-      localStorage.setItem('alumnos_list', JSON.stringify(INITIAL_ALUMNOS));
-      
-      // Seed default estudiantes string list for other dropdown selectors
-      const namesOnly = INITIAL_ALUMNOS.map(a => a.nombre);
-      localStorage.setItem('estudiantes', JSON.stringify(namesOnly));
-    }
+    const fetchAlumnos = async () => {
+      try {
+        const data = await getEstudiantes();
+        setAlumnos(data);
+      } catch (err: any) {
+        console.warn("Error fetching students from server, falling back to local list.", err);
+        const stored = localStorage.getItem('alumnos_list');
+        if (stored) {
+          setAlumnos(JSON.parse(stored));
+        } else {
+          setAlumnos(INITIAL_ALUMNOS);
+          localStorage.setItem('alumnos_list', JSON.stringify(INITIAL_ALUMNOS));
+          const namesOnly = INITIAL_ALUMNOS.map(a => a.nombre);
+          localStorage.setItem('estudiantes', JSON.stringify(namesOnly));
+        }
+      }
+    };
+    fetchAlumnos();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !codigo.trim() || !email.trim()) {
       alert('Por favor complete todos los campos');
@@ -54,31 +62,45 @@ export const AgregarAlumno: React.FC = () => {
       email: email.trim()
     };
 
-    const updatedList = [...alumnos, nuevoAlumno];
-    setAlumnos(updatedList);
-    localStorage.setItem('alumnos_list', JSON.stringify(updatedList));
-
-    // Update names-only list for Evaluacion dropdown
-    const namesOnly = updatedList.map(a => a.nombre);
-    localStorage.setItem('estudiantes', JSON.stringify(namesOnly));
-
-    // Clear form
-    setNombre('');
-    setCodigo('');
-    setEmail('');
-
-    setSuccessMsg(`Alumno ${nuevoAlumno.nombre} agregado con éxito.`);
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
-
-  const handleRemove = (id: string) => {
-    if (window.confirm('¿Está seguro de eliminar este alumno?')) {
-      const updatedList = alumnos.filter(a => a.id !== id);
+    try {
+      await createEstudiante(nuevoAlumno);
+      
+      const updatedList = [...alumnos, nuevoAlumno];
       setAlumnos(updatedList);
       localStorage.setItem('alumnos_list', JSON.stringify(updatedList));
 
+      // Update names-only list for Evaluacion dropdown
       const namesOnly = updatedList.map(a => a.nombre);
       localStorage.setItem('estudiantes', JSON.stringify(namesOnly));
+
+      // Clear form
+      setNombre('');
+      setCodigo('');
+      setEmail('');
+
+      setSuccessMsg(`Alumno ${nuevoAlumno.nombre} agregado con éxito.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Error al guardar el alumno en la base de datos');
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    if (window.confirm('¿Está seguro de eliminar este alumno?')) {
+      try {
+        await deleteEstudiante(id);
+        
+        const updatedList = alumnos.filter(a => a.id !== id);
+        setAlumnos(updatedList);
+        localStorage.setItem('alumnos_list', JSON.stringify(updatedList));
+
+        const namesOnly = updatedList.map(a => a.nombre);
+        localStorage.setItem('estudiantes', JSON.stringify(namesOnly));
+      } catch (err: any) {
+        console.error(err);
+        alert(err.response?.data?.error || 'Error al eliminar el alumno de la base de datos');
+      }
     }
   };
 

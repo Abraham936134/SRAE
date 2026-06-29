@@ -6,6 +6,7 @@ import { mockRubricas, mockEstudiantes, mockActividades, mockEvaluaciones } from
 import { Save, User, BookOpen, Award, CheckCircle, AlertTriangle, AlertCircle, Sparkles, HelpCircle } from 'lucide-react';
 import { applyEvaluacion } from '../api/evaluaciones';
 import { getRubricas } from '../api/rubricas';
+import { getEstudiantes } from '../api/estudiantes';
 
 export const Evaluacion: React.FC = () => {
   const navigate = useNavigate();
@@ -40,13 +41,19 @@ export const Evaluacion: React.FC = () => {
         setSelectedRubricaId(activeOnes[0].id);
       }
 
-      // Load dynamic students from localStorage
-      const storedEstudiantes = localStorage.getItem('estudiantes');
-      if (storedEstudiantes) {
-        setEstudiantes(JSON.parse(storedEstudiantes));
-      } else {
-        setEstudiantes(mockEstudiantes);
-        localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
+      // Load dynamic students from backend
+      try {
+        const data = await getEstudiantes();
+        setEstudiantes(data.map(d => d.nombre));
+      } catch (err: any) {
+        console.warn("Error fetching students from server, falling back to local list.", err);
+        const storedEstudiantes = localStorage.getItem('estudiantes');
+        if (storedEstudiantes) {
+          setEstudiantes(JSON.parse(storedEstudiantes));
+        } else {
+          setEstudiantes(mockEstudiantes);
+          localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
+        }
       }
     };
 

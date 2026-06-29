@@ -8,6 +8,7 @@ import usuariosRouter from './infrastructure/http/routes/usuarios';
 import rubricasRouter from './infrastructure/http/routes/rubricas';
 import evaluacionesRouter from './infrastructure/http/routes/evaluaciones';
 import reportesRouter from './infrastructure/http/routes/reportes';
+import estudiantesRouter from './infrastructure/http/routes/estudiantes';
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/api/usuarios', usuariosRouter);
 app.use('/api/rubricas', rubricasRouter);
 app.use('/api/evaluaciones', evaluacionesRouter);
 app.use('/api/reportes', reportesRouter);
+app.use('/api/estudiantes', estudiantesRouter);
 
 // Basic health check route
 app.get('/health', (_req, res) => {

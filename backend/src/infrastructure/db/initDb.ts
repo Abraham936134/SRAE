@@ -19,6 +19,7 @@ async function init() {
         criterios, 
         rubricas_historial,
         rubricas, 
+        estudiantes,
         usuarios 
       CASCADE;
     `;
@@ -63,6 +64,25 @@ async function init() {
         VALUES (${u.id}, ${u.nombre}, ${u.email}, ${hashedPassword}, ${u.rol})
       `;
       console.log(`[InitDb] Seeded user: ${u.nombre} (${u.rol})`);
+    }
+
+    // 4.5. Seed Estudiantes
+    console.log('[InitDb] Seeding students...');
+    const seedStudents = [
+      { id: 'est-1', nombre: 'Abraham Alva', codigo: '202310123', email: 'abraham.alva@urp.edu.pe' },
+      { id: 'est-2', nombre: 'María Quispe', codigo: '202320456', email: 'maria.quispe@urp.edu.pe' },
+      { id: 'est-3', nombre: 'Juan Pérez', codigo: '202410987', email: 'juan.perez@urp.edu.pe' },
+      { id: 'est-4', nombre: 'Ana Torres', codigo: '202420321', email: 'ana.torres@urp.edu.pe' },
+      { id: 'est-5', nombre: 'Carlos Mendoza', codigo: '202210888', email: 'carlos.mendoza@urp.edu.pe' },
+      { id: 'est-6', nombre: 'Sofía Rodríguez', codigo: '202220777', email: 'sofia.rodriguez@urp.edu.pe' }
+    ];
+
+    for (const s of seedStudents) {
+      await sql`
+        INSERT INTO estudiantes (id, nombre, codigo, email)
+        VALUES (${s.id}, ${s.nombre}, ${s.codigo}, ${s.email})
+      `;
+      console.log(`[InitDb] Seeded student: ${s.nombre} (${s.codigo})`);
     }
 
     // 5. Seed Rubrics

@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const estudiantesController_1 = require("../controllers/estudiantesController");
+const validate_1 = require("../middlewares/validate");
+const router = (0, express_1.Router)();
+const controller = new estudiantesController_1.EstudiantesController();
+router.get('/', (req, res) => controller.listar(req, res));
+router.post('/', (0, validate_1.validateBody)(estudiantesController_1.createEstudianteSchema), (req, res) => controller.crear(req, res));
+router.delete('/:id', (req, res) => controller.eliminar(req, res));
+exports.default = router;
