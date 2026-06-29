@@ -1,6 +1,7 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Mail, Building, Shield, CheckCircle, Trash2 } from 'lucide-react';
+import { registerUser } from '../api/usuarios';
 
 interface DocenteItem {
   id: string;
@@ -35,11 +36,23 @@ export const AgregarProfesor: React.FC = () => {
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !departamento.trim()) {
       alert('Por favor complete todos los campos');
       return;
+    }
+
+    // Attempt to register user in the real backend database
+    try {
+      await registerUser({
+        nombre: nombre.trim(),
+        email: email.trim(),
+        password: 'secret123', // Contraseña inicial por defecto para nuevos usuarios
+        rol: rol
+      });
+    } catch (err: any) {
+      console.warn("Backend offline or registration failed. Proceeding with local fallback.", err);
     }
 
     const nuevoDocente: DocenteItem = {
