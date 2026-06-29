@@ -4,7 +4,7 @@
     "module": "commonjs",
     "lib": ["es2022"],
     "allowJs": true,
-    "outDir": "./dist",
+    "outDir": "./dist/src",
     "rootDir": "./src",
     "strict": true,
     "noImplicitAny": true,
