@@ -38,10 +38,10 @@ export class ReportesController {
       const useCase = new GenerarReporteGrupal(rubricaRepo, evaluacionRepo);
       const stats = await useCase.execute(rubricaId);
       
-      const buffer = pdfGen.generate(stats);
+      const buffer = await pdfGen.generate(stats);
 
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reporte-grupal-${rubricaId}.txt"`);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="reporte-grupal-${rubricaId}.pdf"`);
       res.status(200).send(buffer);
     } catch (error) {
       handleError(error, res);
@@ -54,10 +54,10 @@ export class ReportesController {
       const useCase = new GenerarReporteGrupal(rubricaRepo, evaluacionRepo);
       const stats = await useCase.execute(rubricaId);
       
-      const buffer = excelGen.generate(stats);
+      const buffer = await excelGen.generate(stats);
 
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reporte-grupal-${rubricaId}.csv"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="reporte-grupal-${rubricaId}.xlsx"`);
       res.status(200).send(buffer);
     } catch (error) {
       handleError(error, res);

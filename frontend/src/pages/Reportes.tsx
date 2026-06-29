@@ -113,7 +113,7 @@ export const Reportes: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.txt`);
+      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
@@ -130,7 +130,7 @@ export const Reportes: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.csv`);
+      link.setAttribute('download', `reporte-grupal-${selectedRubricaId}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
