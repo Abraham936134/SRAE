@@ -238,7 +238,10 @@ export const Login: React.FC = () => {
 
           {/* Help notice below form */}
           <div className="text-center mt-5">
-            <p className="text-xs text-slate-400 font-semibold flex items-center justify-center gap-1 hover:text-primary transition-colors cursor-pointer select-none">
+            <p 
+              onClick={() => alert('Para soporte o restablecer su contraseña, por favor contacte al Administrador del Sistema al correo: admin@urp.edu.pe')}
+              className="text-xs text-slate-400 font-semibold flex items-center justify-center gap-1 hover:text-primary transition-colors cursor-pointer select-none"
+            >
               <HelpCircle size={14} />
               ¿Problemas para acceder? Contacta al administrador
             </p>

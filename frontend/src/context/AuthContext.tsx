@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Usuario } from '../types';
 
 interface AuthContextType {
@@ -14,18 +14,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [user, setUser] = useState<Usuario | null>(null);
-
-  useEffect(() => {
+  const [user, setUser] = useState<Usuario | null>(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        return JSON.parse(storedUser);
       } catch (e) {
         localStorage.removeItem('user');
       }
     }
-  }, []);
+    return null;
+  });
 
   const login = (newToken: string, newUser: Usuario) => {
     localStorage.setItem('token', newToken);
