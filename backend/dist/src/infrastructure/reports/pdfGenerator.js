@@ -61,7 +61,6 @@ class PdfGenerator {
                     doc.rect(50, currentY, 495, 30).fillColor('#F1F5F9').fill();
                 }
                 doc.fillColor('#1E293B').fontSize(9);
-                // Shorten long descriptions to avoid text overlap or layout breaking
                 const desc = c.descripcion.length > 55 ? `${c.descripcion.substring(0, 52)}...` : c.descripcion;
                 doc.text(desc, 60, currentY + 10, { width: 280 });
                 doc.text(`${c.ponderacion}%`, 360, currentY + 10, { width: 80, align: 'center' });
@@ -71,6 +70,43 @@ class PdfGenerator {
                 currentY += 30;
             });
             doc.y = currentY + 20;
+            // 6. Individual student evaluations section (appended page)
+            if (report.evaluacionesDetalle && report.evaluacionesDetalle.length > 0) {
+                doc.addPage();
+                doc.fillColor('#1E3A8A').fontSize(14).text('DETALLE DE EVALUACIONES INDIVIDUALES', { align: 'center' });
+                doc.fontSize(10).fillColor('#475569').text('RELACIÓN DE NOTAS POR ESTUDIANTE', { align: 'center' });
+                doc.moveDown(1);
+                doc.strokeColor('#CBD5E1').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                doc.moveDown(1.5);
+                // Header for students list
+                const listHeaderTop = doc.y;
+                doc.rect(50, listHeaderTop, 495, 20).fillColor('#475569').fill();
+                doc.fillColor('#FFFFFF').fontSize(9);
+                doc.text('Estudiante / Alumno', 60, listHeaderTop + 5, { width: 220 });
+                doc.text('Fecha Evaluación', 300, listHeaderTop + 5, { width: 100, align: 'center' });
+                doc.text('Nota Final', 420, listHeaderTop + 5, { width: 110, align: 'center' });
+                let currentStudentY = listHeaderTop + 20;
+                report.evaluacionesDetalle.forEach((ev, idx) => {
+                    // If we reach near the page margin, add a new page
+                    if (currentStudentY > doc.page.height - 80) {
+                        doc.addPage();
+                        currentStudentY = 50;
+                    }
+                    if (idx % 2 === 1) {
+                        doc.rect(50, currentStudentY, 495, 25).fillColor('#F8FAFC').fill();
+                    }
+                    doc.fillColor('#1E293B').fontSize(9);
+                    doc.text(ev.estudiante, 60, currentStudentY + 7, { width: 220 });
+                    doc.text(new Date(ev.fecha).toLocaleDateString(), 300, currentStudentY + 7, { width: 100, align: 'center' });
+                    // Draw bold highlight for grades
+                    doc.fillColor('#0F172A').font('Helvetica-Bold');
+                    doc.text(ev.notaFinal.toFixed(2), 420, currentStudentY + 7, { width: 110, align: 'center' });
+                    doc.font('Helvetica'); // restore font
+                    doc.strokeColor('#E2E8F0').lineWidth(0.5).moveTo(50, currentStudentY + 25).lineTo(545, currentStudentY + 25).stroke();
+                    currentStudentY += 25;
+                });
+                doc.y = currentStudentY + 20;
+            }
             // Footer divider
             doc.strokeColor('#CBD5E1').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
             doc.moveDown(1);

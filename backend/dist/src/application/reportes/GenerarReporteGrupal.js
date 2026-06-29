@@ -66,6 +66,16 @@ class GenerarReporteGrupal {
             notaMaxima,
             notaMinima,
             criteriosStats,
+            evaluacionesDetalle: evaluaciones.map((e) => ({
+                id: e.id,
+                estudiante: e.estudiante,
+                notaFinal: e.notaFinal,
+                fecha: e.fecha,
+                respuestas: e.respuestas.map((r) => ({
+                    criterioId: r.criterioId,
+                    puntosNivel: r.puntosNivel,
+                })),
+            })),
         };
     }
 }

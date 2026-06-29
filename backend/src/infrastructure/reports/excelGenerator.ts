@@ -4,9 +4,8 @@ import { ReporteGrupalOutput } from '../../application/reportes/GenerarReporteGr
 export class ExcelGenerator {
   async generate(report: ReporteGrupalOutput): Promise<Buffer> {
     const workbook = new Workbook();
-    const worksheet = workbook.addWorksheet('Reporte Académico');
-
-    // Styling configuration
+    
+    // Style settings
     const primaryFont = { name: 'Arial', family: 2, size: 10 };
     const titleFont = { name: 'Arial', family: 2, size: 14, bold: true, color: { argb: '1E3A8A' } };
     const headerFont = { name: 'Arial', family: 2, size: 10, bold: true, color: { argb: 'FFFFFF' } };
@@ -31,7 +30,12 @@ export class ExcelGenerator {
       right: { style: 'thin' as const, color: { argb: 'E2E8F0' } }
     };
 
-    // 1. Report Title
+    // ----------------------------------------------------
+    // TAB 1: RESUMEN ESTADÍSTICO
+    // ----------------------------------------------------
+    const worksheet = workbook.addWorksheet('Reporte Académico');
+
+    // Report Title
     worksheet.mergeCells('A1:C1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = 'UNIVERSIDAD RICARDO PALMA - REPORTE DE EVALUACIÓN';
@@ -39,7 +43,7 @@ export class ExcelGenerator {
     titleCell.alignment = { horizontal: 'center' };
     worksheet.getRow(1).height = 25;
 
-    // 2. Metadata details
+    // Metadata details
     worksheet.getCell('A3').value = 'Rúbrica:';
     worksheet.getCell('A3').font = boldFont;
     worksheet.getCell('B3').value = report.tituloRubrica;
@@ -55,7 +59,7 @@ export class ExcelGenerator {
     worksheet.getCell('B5').value = new Date().toLocaleDateString();
     worksheet.getCell('B5').font = primaryFont;
 
-    // 3. General Metrics
+    // General Metrics Headers
     worksheet.getCell('A7').value = 'Métrica General';
     worksheet.getCell('A7').font = headerFont;
     worksheet.getCell('A7').fill = headerFill;
@@ -93,7 +97,7 @@ export class ExcelGenerator {
       }
     });
 
-    // 4. Criteria Breakdown Title
+    // Criteria Breakdown Title
     const breakdownStartRow = 14;
     worksheet.getCell(`A${breakdownStartRow}`).value = 'DESGLOSE DE CRITERIOS';
     worksheet.getCell(`A${breakdownStartRow}`).font = boldFont;
@@ -141,10 +145,89 @@ export class ExcelGenerator {
       }
     });
 
-    // Auto-adjust column widths
+    // Auto-adjust column widths for Sheet 1
     worksheet.getColumn(1).width = 45;
     worksheet.getColumn(2).width = 18;
     worksheet.getColumn(3).width = 18;
+
+
+    // ----------------------------------------------------
+    // TAB 2: MATRIZ DE NOTAS (INDIVIDUAL REPORT PER STUDENT)
+    // ----------------------------------------------------
+    if (report.evaluacionesDetalle && report.evaluacionesDetalle.length > 0) {
+      const sheet2 = workbook.addWorksheet('Matriz de Notas');
+      
+      // Title
+      sheet2.mergeCells('A1:E1');
+      const titleCell2 = sheet2.getCell('A1');
+      titleCell2.value = `Matriz de Notas Consolidadas - Rúbrica: ${report.tituloRubrica}`;
+      titleCell2.font = titleFont;
+      titleCell2.alignment = { horizontal: 'center' };
+      sheet2.getRow(1).height = 25;
+
+      sheet2.addRow([]); // Blank row
+
+      // Build Dynamic Headers
+      const headers = ['Estudiante', 'Fecha de Evaluación'];
+      report.criteriosStats.forEach((c, idx) => {
+        headers.push(`Criterio ${idx + 1} (${c.ponderacion}%)`);
+      });
+      headers.push('Nota Final');
+
+      const headerRow2 = sheet2.addRow(headers);
+      headerRow2.height = 22;
+      
+      // Style headers
+      headers.forEach((_, idx) => {
+        const colLetter = String.fromCharCode(65 + idx); // A, B, C, D, ...
+        const cell = sheet2.getCell(`${colLetter}3`);
+        cell.font = headerFont;
+        cell.fill = headerFill;
+        cell.alignment = { horizontal: idx === 0 ? 'left' : 'center', vertical: 'middle' };
+        cell.border = borderStyle;
+      });
+
+      // Data Rows
+      report.evaluacionesDetalle.forEach((ev, idx) => {
+        const rowData: any[] = [
+          ev.estudiante,
+          new Date(ev.fecha).toLocaleDateString()
+        ];
+
+        // Add scores for each criterion
+        report.criteriosStats.forEach((c) => {
+          const resp = ev.respuestas.find((r) => r.criterioId === c.criterioId);
+          rowData.push(resp ? resp.puntosNivel : 0);
+        });
+
+        // Add final score
+        rowData.push(ev.notaFinal);
+
+        const row = sheet2.addRow(rowData);
+        row.height = 20;
+
+        // Style data cells
+        rowData.forEach((_, cellIdx) => {
+          const colLetter = String.fromCharCode(65 + cellIdx);
+          const cell = sheet2.getCell(`${colLetter}${4 + idx}`);
+          cell.font = cellIdx === rowData.length - 1 ? boldFont : primaryFont;
+          cell.border = borderStyle;
+          cell.alignment = { horizontal: cellIdx === 0 ? 'left' : 'center', vertical: 'middle' };
+          
+          if (idx % 2 === 1) {
+            cell.fill = lightFill;
+          }
+        });
+      });
+
+      // Adjust column widths for Sheet 2
+      sheet2.getColumn(1).width = 30; // Estudiante
+      sheet2.getColumn(2).width = 18; // Fecha
+      report.criteriosStats.forEach((_, idx) => {
+        sheet2.getColumn(3 + idx).width = 16; // Criterio columns
+      });
+      sheet2.getColumn(3 + report.criteriosStats.length).width = 15; // Nota Final
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as unknown as Buffer;
