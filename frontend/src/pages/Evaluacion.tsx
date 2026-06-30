@@ -19,6 +19,7 @@ export const Evaluacion: React.FC = () => {
 
   const [estudiante, setEstudiante] = useState('');
   const [actividad, setActividad] = useState('');
+  const [actividades, setActividades] = useState<string[]>([]);
   const [estudiantes, setEstudiantes] = useState<string[]>([]);
   const [existingEvaluation, setExistingEvaluation] = useState<IEvaluacion | null>(null);
   
@@ -54,6 +55,14 @@ export const Evaluacion: React.FC = () => {
           localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
         }
       }
+
+      // Load dynamic activities from local storage
+      const storedActs = localStorage.getItem('actividades');
+      const actsList = storedActs ? JSON.parse(storedActs) : mockActividades;
+      if (!storedActs) {
+        localStorage.setItem('actividades', JSON.stringify(mockActividades));
+      }
+      setActividades(actsList);
 
       // If in edit mode, load the existing evaluation details
       if (id) {
@@ -297,7 +306,8 @@ export const Evaluacion: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-secondary/70 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <User size={14} className="text-primary" /> Estudiante
-                                <select
+                  </label>
+                  <select
                     required
                     value={estudiante}
                     onChange={(e) => setEstudiante(e.target.value)}
@@ -322,7 +332,7 @@ export const Evaluacion: React.FC = () => {
                     className="w-full px-4 py-3 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-secondary font-medium"
                   >
                     <option value="">-- Seleccione una Actividad --</option>
-                    {mockActividades.map((act) => (
+                    {actividades.map((act) => (
                       <option key={act} value={act}>{act}</option>
                     ))}
                   </select>

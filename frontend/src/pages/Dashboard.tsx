@@ -50,12 +50,18 @@ export const Dashboard: React.FC = () => {
         localStorage.setItem('evaluaciones', JSON.stringify(mockEvaluaciones));
       }
 
+      const storedActs = localStorage.getItem('actividades');
+      const actsList = storedActs ? JSON.parse(storedActs) : mockActividades;
+      if (!storedActs) {
+        localStorage.setItem('actividades', JSON.stringify(mockActividades));
+      }
+
       // Map each evaluation to its activity
       const mapped = evalsList.map((e) => {
         const storedActivity = localStorage.getItem(`eval-actividad-${e.id}`);
         return {
           ...e,
-          actividad: storedActivity || mockActividades[Math.floor(Math.random() * mockActividades.length)],
+          actividad: storedActivity || actsList[Math.floor(Math.random() * actsList.length)],
         };
       });
 

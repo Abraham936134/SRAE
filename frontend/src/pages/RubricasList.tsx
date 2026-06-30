@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Rubrica } from '../types';
-import { mockRubricas } from '../mock/data';
+import { mockRubricas, mockActividades } from '../mock/data';
 import { 
   Eye, 
   Pencil, 
@@ -11,7 +11,9 @@ import {
   Search,
   Plus,
   Filter,
-  X
+  X,
+  BookOpen,
+  Trash2
 } from 'lucide-react';
 import { getRubricas, cloneRubrica, archiveRubrica } from '../api/rubricas';
 
@@ -23,6 +25,42 @@ export const RubricasList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'archived', 'draft'
   const [authorFilter, setAuthorFilter] = useState('all'); // 'all', 'docente-uuid-1'
+
+  // Activities state
+  const [actividades, setActividades] = useState<string[]>([]);
+  const [nuevaActividad, setNuevaActividad] = useState('');
+
+  const loadActividades = () => {
+    const stored = localStorage.getItem('actividades');
+    if (stored) {
+      setActividades(JSON.parse(stored));
+    } else {
+      setActividades(mockActividades);
+      localStorage.setItem('actividades', JSON.stringify(mockActividades));
+    }
+  };
+
+  const handleAddActividad = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevaActividad.trim()) return;
+    if (actividades.includes(nuevaActividad.trim())) {
+      alert('La actividad ya existe.');
+      return;
+    }
+    const updated = [...actividades, nuevaActividad.trim()];
+    setActividades(updated);
+    localStorage.setItem('actividades', JSON.stringify(updated));
+    setNuevaActividad('');
+  };
+
+  const handleDeleteActividad = (actName: string) => {
+    if (!window.confirm(`¿Está seguro de que desea eliminar la actividad "${actName}"?`)) {
+      return;
+    }
+    const updated = actividades.filter((act) => act !== actName);
+    setActividades(updated);
+    localStorage.setItem('actividades', JSON.stringify(updated));
+  };
 
   const loadRubricas = async () => {
     try {
@@ -43,6 +81,7 @@ export const RubricasList: React.FC = () => {
 
   useEffect(() => {
     loadRubricas();
+    loadActividades();
   }, []);
 
   const getStatusBadge = (r: Rubrica) => {
@@ -220,102 +259,149 @@ export const RubricasList: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Table view */}
-      <div className="bg-surface rounded-lg shadow-sm border border-borderLight overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-borderLight text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <th scope="col" className="px-6 py-4">Nombre</th>
-                <th scope="col" className="px-6 py-4 text-center">Versión</th>
-                <th scope="col" className="px-6 py-4 text-center">Criterios</th>
-                <th scope="col" className="px-6 py-4">Estado</th>
-                <th scope="col" className="px-6 py-4">Autor</th>
-                <th scope="col" className="px-6 py-4">Fecha</th>
-                <th scope="col" className="px-6 py-4 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-borderLight">
-              {filteredRubricas.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-400">
-                    No se encontraron rúbricas que coincidan con los filtros aplicados.
-                  </td>
+      {/* Main Grid View: Left = Rubrics Table, Right = Activities Manager */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left: Rubrics catalogue (8 columns span) */}
+        <div className="lg:col-span-8 bg-surface rounded-lg shadow-sm border border-borderLight overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-borderLight text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4">Nombre</th>
+                  <th scope="col" className="px-6 py-4 text-center">Versión</th>
+                  <th scope="col" className="px-6 py-4 text-center">Criterios</th>
+                  <th scope="col" className="px-6 py-4">Estado</th>
+                  <th scope="col" className="px-6 py-4">Autor</th>
+                  <th scope="col" className="px-6 py-4">Fecha</th>
+                  <th scope="col" className="px-6 py-4 text-right">Acciones</th>
                 </tr>
-              ) : (
-                filteredRubricas.map((r) => (
-                  <tr key={r.id} className="hover:bg-bgLight transition-colors duration-150">
-                    <td className="px-6 py-4 text-left">
-                      <p className="text-sm font-semibold text-slate-800">{r.titulo}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{r.descripcion}</p>
-                    </td>
-                    <td className="px-6 py-4 text-center text-xs font-mono font-bold text-slate-500">
-                      v{Number(r.version).toFixed(1)}
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm font-semibold text-slate-650">
-                      {r.criterios?.length || 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-left">{getStatusBadge(r)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-500 text-left">
-                      {r.creadoPor === 'docente-uuid-1' ? 'Abraham Alva' : 'Sistema'}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-slate-450 text-left">
-                      {new Date(r.fechaCreacion).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-semibold space-x-1.5">
-                      {/* View details */}
-                      <button
-                        onClick={() => setSelectedRubrica(r)}
-                        className="p-1.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-secondary rounded transition-colors duration-150 inline-flex items-center"
-                        title="Ver detalle"
-                      >
-                        <Eye size={14} />
-                      </button>
-
-                      {/* Edit option */}
-                      {r.activa ? (
-                        <Link
-                          to={`/rubricas/${r.id}/editar`}
-                          className="p-1.5 bg-white text-primary border border-blue-200 hover:bg-blue-50 rounded transition-colors duration-150 inline-flex items-center"
-                          title="Editar rúbrica"
-                        >
-                          <Pencil size={14} />
-                        </Link>
-                      ) : (
-                        <button
-                          disabled
-                          className="p-1.5 bg-slate-50 text-slate-300 border border-slate-200 rounded cursor-not-allowed opacity-50 inline-flex items-center"
-                          title="No se puede editar una rúbrica archivada"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-
-                      {/* Clone option */}
-                      <button
-                        onClick={() => handleClone(r)}
-                        className="p-1.5 bg-white text-accent border border-green-200 hover:bg-green-50 rounded transition-colors duration-150 inline-flex items-center"
-                        title="Clonar rúbrica"
-                      >
-                        <Copy size={14} />
-                      </button>
-
-                      {/* Archive option */}
-                      {r.activa && (
-                        <button
-                          onClick={() => handleArchive(r.id)}
-                          className="p-1.5 bg-white text-danger border border-red-200 hover:bg-red-50 rounded transition-colors duration-150 inline-flex items-center"
-                          title="Archivar rúbrica"
-                        >
-                          <Archive size={14} />
-                        </button>
-                      )}
+              </thead>
+              <tbody className="divide-y divide-borderLight">
+                {filteredRubricas.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-400">
+                      No se encontraron rúbricas que coincidan con los filtros aplicados.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredRubricas.map((r) => (
+                    <tr key={r.id} className="hover:bg-bgLight transition-colors duration-150">
+                      <td className="px-6 py-4 text-left">
+                        <p className="text-sm font-semibold text-slate-800">{r.titulo}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{r.descripcion}</p>
+                      </td>
+                      <td className="px-6 py-4 text-center text-xs font-mono font-bold text-slate-500">
+                        v{Number(r.version).toFixed(1)}
+                      </td>
+                      <td className="px-6 py-4 text-center text-sm font-semibold text-slate-650">
+                        {r.criterios?.length || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-left">{getStatusBadge(r)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500 text-left">
+                        {r.creadoPor === 'docente-uuid-1' ? 'Abraham Alva' : 'Sistema'}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-450 text-left">
+                        {new Date(r.fechaCreacion).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-semibold space-x-1.5">
+                        {/* View details */}
+                        <button
+                          onClick={() => setSelectedRubrica(r)}
+                          className="p-1.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-secondary rounded transition-colors duration-150 inline-flex items-center"
+                          title="Ver detalle"
+                        >
+                          <Eye size={14} />
+                        </button>
+
+                        {/* Edit option */}
+                        {r.activa ? (
+                          <Link
+                            to={`/rubricas/${r.id}/editar`}
+                            className="p-1.5 bg-white text-primary border border-blue-200 hover:bg-blue-50 rounded transition-colors duration-150 inline-flex items-center"
+                            title="Editar rúbrica"
+                          >
+                            <Pencil size={14} />
+                          </Link>
+                        ) : (
+                          <button
+                            disabled
+                            className="p-1.5 bg-slate-50 text-slate-300 border border-slate-200 rounded cursor-not-allowed opacity-50 inline-flex items-center"
+                            title="No se puede editar una rúbrica archivada"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+
+                        {/* Clone option */}
+                        <button
+                          onClick={() => handleClone(r)}
+                          className="p-1.5 bg-white text-accent border border-green-200 hover:bg-green-50 rounded transition-colors duration-150 inline-flex items-center"
+                          title="Clonar rúbrica"
+                        >
+                          <Copy size={14} />
+                        </button>
+
+                        {/* Archive option */}
+                        {r.activa && (
+                          <button
+                            onClick={() => handleArchive(r.id)}
+                            className="p-1.5 bg-white text-danger border border-red-200 hover:bg-red-50 rounded transition-colors duration-150 inline-flex items-center"
+                            title="Archivar rúbrica"
+                          >
+                            <Archive size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right: Activities manager (4 columns span) */}
+        <div className="lg:col-span-4 bg-surface rounded-lg shadow-sm border border-borderLight p-6 space-y-4">
+          <div className="flex items-center gap-2 border-b border-borderLight pb-3">
+            <BookOpen size={18} className="text-primary" />
+            <h4 className="font-bold text-secondary text-sm uppercase tracking-wider">Actividades Académicas</h4>
+          </div>
+          
+          <form onSubmit={handleAddActividad} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Nueva actividad (ej. Examen Final)..."
+              value={nuevaActividad}
+              onChange={(e) => setNuevaActividad(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-350 rounded-sm text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white text-slate-800 placeholder-slate-400"
+              required
+            />
+            <button
+              type="submit"
+              className="px-3 py-2 bg-primary hover:bg-blue-700 text-white font-bold rounded-md transition-colors text-xs flex items-center gap-1 shadow-sm shrink-0"
+            >
+              <Plus size={12} /> Agregar
+            </button>
+          </form>
+          
+          <div className="max-h-[350px] overflow-y-auto divide-y divide-borderLight pr-1">
+            {actividades.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No hay actividades registradas.</p>
+            ) : (
+              actividades.map((act) => (
+                <div key={act} className="py-2.5 flex justify-between items-center group">
+                  <span className="text-xs font-semibold text-slate-700 leading-tight pr-2">{act}</span>
+                  <button
+                    onClick={() => handleDeleteActividad(act)}
+                    className="p-1 text-danger hover:bg-danger/10 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                    title="Eliminar Actividad"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
