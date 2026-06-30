@@ -76,4 +76,8 @@ router.use(authMiddleware);
  */
 router.post('/', validateBody(aplicarEvaluacionSchema), (req, res) => controller.apply(req, res));
 
+router.put('/:id', validateBody(aplicarEvaluacionSchema), (req, res) => controller.update(req, res));
+
+router.delete('/:id', (req, res) => controller.delete(req, res));
+
 export default router;

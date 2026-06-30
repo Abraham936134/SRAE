@@ -1,15 +1,17 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Rubrica, Nivel, Evaluacion as IEvaluacion, RespuestaCriterio } from '../types';
 import { mockRubricas, mockEstudiantes, mockActividades, mockEvaluaciones } from '../mock/data';
 import { Save, User, BookOpen, Award, CheckCircle, AlertTriangle, AlertCircle, Sparkles, HelpCircle } from 'lucide-react';
-import { applyEvaluacion } from '../api/evaluaciones';
+import { applyEvaluacion, updateEvaluacion } from '../api/evaluaciones';
 import { getRubricas } from '../api/rubricas';
 import { getEstudiantes } from '../api/estudiantes';
 
 export const Evaluacion: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const isEditMode = !!id;
 
   const [rubricas, setRubricas] = useState<Rubrica[]>([]);
   const [selectedRubricaId, setSelectedRubricaId] = useState('');
@@ -18,6 +20,7 @@ export const Evaluacion: React.FC = () => {
   const [estudiante, setEstudiante] = useState('');
   const [actividad, setActividad] = useState('');
   const [estudiantes, setEstudiantes] = useState<string[]>([]);
+  const [existingEvaluation, setExistingEvaluation] = useState<IEvaluacion | null>(null);
   
   // Maps criterion ID to selected Nivel object
   const [seleccionados, setSeleccionados] = useState<Record<string, Nivel>>({});
@@ -37,10 +40,6 @@ export const Evaluacion: React.FC = () => {
       }
       setRubricas(activeOnes);
 
-      if (activeOnes.length > 0) {
-        setSelectedRubricaId(activeOnes[0].id);
-      }
-
       // Load dynamic students from backend
       try {
         const data = await getEstudiantes();
@@ -55,10 +54,27 @@ export const Evaluacion: React.FC = () => {
           localStorage.setItem('estudiantes', JSON.stringify(mockEstudiantes));
         }
       }
+
+      // If in edit mode, load the existing evaluation details
+      if (id) {
+        const storedEvals = localStorage.getItem('evaluaciones');
+        const evalsList: IEvaluacion[] = storedEvals ? JSON.parse(storedEvals) : mockEvaluaciones;
+        const foundEval = evalsList.find((e) => e.id === id);
+        if (foundEval) {
+          setExistingEvaluation(foundEval);
+          setEstudiante(foundEval.estudiante);
+          setSelectedRubricaId(foundEval.rubricaId);
+          
+          const storedActivity = localStorage.getItem(`eval-actividad-${id}`);
+          setActividad(storedActivity || '');
+        }
+      } else if (activeOnes.length > 0) {
+        setSelectedRubricaId(activeOnes[0].id);
+      }
     };
 
     loadData();
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     if (selectedRubricaId) {
@@ -67,13 +83,29 @@ export const Evaluacion: React.FC = () => {
       const found = rubricasList.find((r) => r.id === selectedRubricaId);
       if (found) {
         setSelectedRubrica(found);
-        setSeleccionados({});
+        
+        // Restore criteria level selections if we are editing the loaded rubric
+        if (existingEvaluation && found.id === existingEvaluation.rubricaId) {
+          const initialSelections: Record<string, Nivel> = {};
+          for (const resp of existingEvaluation.respuestas) {
+            const criterion = found.criterios.find((c) => c.id === resp.criterioId);
+            if (criterion) {
+              const level = criterion.niveles.find((n) => n.id === resp.nivelId);
+              if (level) {
+                initialSelections[resp.criterioId] = level;
+              }
+            }
+          }
+          setSeleccionados(initialSelections);
+        } else {
+          setSeleccionados({});
+        }
       }
     } else {
       setSelectedRubrica(null);
       setSeleccionados({});
     }
-  }, [selectedRubricaId]);
+  }, [selectedRubricaId, existingEvaluation]);
 
   const handleSelectNivel = (criterioId: string, nivel: Nivel) => {
     setSeleccionados({
@@ -169,35 +201,51 @@ export const Evaluacion: React.FC = () => {
       };
     });
 
+    const evalId = id || `eval-${Date.now()}`;
+
     const newEval: IEvaluacion = {
-      id: `eval-${Date.now()}`,
+      id: evalId,
       rubricaId: selectedRubrica.id,
       rubricaVersion: selectedRubrica.version,
       estudiante,
-      evaluadorId: 'mock-docente-uuid-1',
+      evaluadorId: existingEvaluation?.evaluadorId || 'mock-docente-uuid-1',
       respuestas: respuestasLocal,
       notaFinal: finalGrade,
-      fecha: new Date().toISOString(),
+      fecha: existingEvaluation?.fecha || new Date().toISOString(),
     };
 
     // Save locally first to guarantee persistence in case backend connection fails
     const saveLocally = () => {
       const storedEvals = localStorage.getItem('evaluaciones');
       const evalsList: IEvaluacion[] = storedEvals ? JSON.parse(storedEvals) : mockEvaluaciones;
-      const updatedList = [newEval, ...evalsList];
+      
+      let updatedList: IEvaluacion[];
+      if (isEditMode) {
+        updatedList = evalsList.map((item) => (item.id === evalId ? newEval : item));
+      } else {
+        updatedList = [newEval, ...evalsList];
+      }
+      
       localStorage.setItem('evaluaciones', JSON.stringify(updatedList));
       localStorage.setItem(`eval-actividad-${newEval.id}`, actividad);
     };
 
     try {
-      // Call actual backend POST endpoint
-      await applyEvaluacion(payload);
-      saveLocally();
-      alert(`[CONECTADO AL SERVIDOR] Evaluación guardada con éxito en la base de datos para ${estudiante}. Nota obtenida: ${finalGrade.toFixed(2)}`);
+      if (isEditMode) {
+        // Call backend PUT endpoint
+        await updateEvaluacion(evalId, payload);
+        saveLocally();
+        alert(`[CONECTADO AL SERVIDOR] Evaluación actualizada con éxito en la base de datos para ${estudiante}. Nueva nota: ${finalGrade.toFixed(2)}`);
+      } else {
+        // Call backend POST endpoint
+        await applyEvaluacion(payload);
+        saveLocally();
+        alert(`[CONECTADO AL SERVIDOR] Evaluación guardada con éxito en la base de datos para ${estudiante}. Nota obtenida: ${finalGrade.toFixed(2)}`);
+      }
     } catch (err) {
       console.warn('Backend offline or error occurred. Saving locally to browser localStorage instead:', err);
       saveLocally();
-      alert(`[MODO OFFLINE] Servidor desconectado. La evaluación de ${estudiante} fue guardada localmente en el navegador con éxito. Nota obtenida: ${finalGrade.toFixed(2)}`);
+      alert(`[MODO OFFLINE] Servidor desconectado. La evaluación de ${estudiante} fue guardada/actualizada localmente en el navegador con éxito. Nota obtenida: ${finalGrade.toFixed(2)}`);
     }
 
     navigate('/reportes');
@@ -222,9 +270,11 @@ export const Evaluacion: React.FC = () => {
       <div className="bg-surface border border-borderLight px-8 py-5 rounded-lg shadow-sm">
         <div className="flex flex-col gap-1">
           <div className="text-xs font-mono text-secondary/40 tracking-wider">
-            SRAE / EVALUACIONES / NUEVA CALIFICACIÓN
+            SRAE / EVALUACIONES / {isEditMode ? 'EDITAR' : 'NUEVA'} CALIFICACIÓN
           </div>
-          <h3 className="text-2xl font-bold text-secondary tracking-tight">Calificar Estudiante</h3>
+          <h3 className="text-2xl font-bold text-secondary tracking-tight">
+            {isEditMode ? 'Editar Calificación' : 'Calificar Estudiante'}
+          </h3>
         </div>
       </div>
 
@@ -247,16 +297,16 @@ export const Evaluacion: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-secondary/70 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <User size={14} className="text-primary" /> Estudiante
-                  </label>
-                  <select
+                                <select
                     required
                     value={estudiante}
                     onChange={(e) => setEstudiante(e.target.value)}
-                    className="w-full px-4 py-3 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-secondary font-medium"
+                    disabled={isEditMode}
+                    className="w-full px-4 py-3 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-secondary font-medium disabled:opacity-75 disabled:bg-slate-50"
                   >
                     <option value="">-- Seleccione un Estudiante --</option>
                     {estudiantes.map((est) => (
-                      <option key={est} value={est}>{est}</option>
+                       <option key={est} value={est}>{est}</option>
                     ))}
                   </select>
                 </div>
@@ -286,7 +336,8 @@ export const Evaluacion: React.FC = () => {
                     required
                     value={selectedRubricaId}
                     onChange={(e) => setSelectedRubricaId(e.target.value)}
-                    className="w-full px-4 py-3 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-secondary font-medium"
+                    disabled={isEditMode}
+                    className="w-full px-4 py-3 border border-borderLight rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-secondary font-medium disabled:opacity-75 disabled:bg-slate-50"
                   >
                     <option value="">-- Seleccione una Rúbrica --</option>
                     {rubricas.map((rub) => (

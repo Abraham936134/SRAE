@@ -16,9 +16,26 @@ export class EvaluacionRepo {
           ${JSON.stringify(evaluacion.respuestas)}, 
           ${evaluacion.fecha}
         )
+        ON CONFLICT (id) DO UPDATE SET
+          nota_final = EXCLUDED.nota_final,
+          respuestas = EXCLUDED.respuestas,
+          fecha = EXCLUDED.fecha,
+          estudiante = EXCLUDED.estudiante
       `;
     } catch (error) {
       console.error('Error en EvaluacionRepo.save:', error);
+      throw error;
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    try {
+      await sql`
+        DELETE FROM evaluaciones 
+        WHERE id = ${id}
+      `;
+    } catch (error) {
+      console.error('Error en EvaluacionRepo.delete:', error);
       throw error;
     }
   }

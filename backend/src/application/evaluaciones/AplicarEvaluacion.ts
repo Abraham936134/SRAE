@@ -10,6 +10,7 @@ export interface SeleccionRespuesta {
 }
 
 export interface AplicarEvaluacionInput {
+  id?: string;
   rubricaId: string;
   estudiante: string;
   evaluadorId: string;
@@ -60,9 +61,11 @@ export class AplicarEvaluacion {
       throw new ValidationError('Se enviaron respuestas para criterios que no pertenecen a esta rúbrica');
     }
 
+    const evalId = input.id || randomUUID();
+
     // Create Evaluacion entity (performs grade calculation internally)
     const evaluacion = Evaluacion.create(
-      randomUUID(),
+      evalId,
       rubrica.id,
       rubrica.version,
       input.estudiante,

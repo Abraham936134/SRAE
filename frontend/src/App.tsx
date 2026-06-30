@@ -80,6 +80,16 @@ export const App: React.FC = () => {
         }
       />
       <Route
+        path="/evaluaciones/:id/editar"
+        element={
+          <PrivateRoute allowedRoles={['administrador', 'docente']}>
+            <Navbar>
+              <Evaluacion />
+            </Navbar>
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/reportes"
         element={
           <PrivateRoute allowedRoles={['administrador', 'docente', 'auxiliar']}>

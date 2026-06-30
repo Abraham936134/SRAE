@@ -1,5 +1,6 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { mockEvaluaciones, mockActividades, mockRubricas } from '../mock/data';
 import { 
   BarChart3, 
@@ -12,16 +13,20 @@ import {
   Download, 
   AlertTriangle, 
   Sparkles,
-  CheckCircle
+  CheckCircle,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getReporteStats, exportReportePDF, exportReporteExcel } from '../api/reportes';
+import { deleteEvaluacion } from '../api/evaluaciones';
 import { getRubricas } from '../api/rubricas';
 import { Rubrica } from '../types';
 
 type TabType = 'stats' | 'pdf' | 'excel';
 
 export const Reportes: React.FC = () => {
+  const navigate = useNavigate();
   const [evaluaciones, setEvaluaciones] = useState<any[]>([]);
   const [actividades, setActividades] = useState<string[]>([]);
   const [selectedActividad, setSelectedActividad] = useState('');
@@ -105,6 +110,67 @@ export const Reportes: React.FC = () => {
 
     fetchStats();
   }, [selectedRubricaId]);
+
+  const handleDeleteEval = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar esta evaluación de forma permanente?')) {
+      return;
+    }
+
+    try {
+      // Call actual backend DELETE endpoint
+      await deleteEvaluacion(id);
+      
+      // Update local storage and local state
+      const storedEvals = localStorage.getItem('evaluaciones');
+      if (storedEvals) {
+        const evalsList: any[] = JSON.parse(storedEvals);
+        const filteredList = evalsList.filter((e) => e.id !== id);
+        localStorage.setItem('evaluaciones', JSON.stringify(filteredList));
+        
+        // Also remove the stored activity for this evaluation
+        localStorage.removeItem(`eval-actividad-${id}`);
+        
+        // Recalculate states
+        setEvaluaciones(filteredList.map((e) => {
+          const storedActivity = localStorage.getItem(`eval-actividad-${e.id}`);
+          return {
+            ...e,
+            actividad: storedActivity || mockActividades[Math.floor(Math.random() * mockActividades.length)],
+          };
+        }));
+      }
+      alert('Evaluación eliminada correctamente del servidor y localmente.');
+      
+      // Refresh backend stats for the active rubric
+      if (selectedRubricaId) {
+        try {
+          const stats = await getReporteStats(selectedRubricaId);
+          setBackendStats(stats);
+        } catch (err) {
+          setBackendStats(null);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error deleting evaluation:', err);
+      // Fallback: delete locally if offline/failed
+      const storedEvals = localStorage.getItem('evaluaciones');
+      if (storedEvals) {
+        const evalsList: any[] = JSON.parse(storedEvals);
+        const filteredList = evalsList.filter((e) => e.id !== id);
+        localStorage.setItem('evaluaciones', JSON.stringify(filteredList));
+        localStorage.removeItem(`eval-actividad-${id}`);
+        
+        setEvaluaciones(filteredList.map((e) => {
+          const storedActivity = localStorage.getItem(`eval-actividad-${e.id}`);
+          return {
+            ...e,
+            actividad: storedActivity || mockActividades[Math.floor(Math.random() * mockActividades.length)],
+          };
+        }));
+        alert('Evaluación eliminada localmente (Servidor desconectado).');
+      }
+    }
+  };
 
   const handleDownloadPDF = async () => {
     if (!selectedRubricaId) return;
@@ -418,12 +484,13 @@ export const Reportes: React.FC = () => {
                     <th className="px-6 py-4">Actividad Académica</th>
                     <th className="px-6 py-4 text-center">Nota Final</th>
                     <th className="px-6 py-4">Fecha de Calificación</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-borderLight">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-xs text-secondary/50">
+                      <td colSpan={5} className="px-6 py-12 text-center text-xs text-secondary/50">
                         No se encontraron evaluaciones registradas para este filtro.
                       </td>
                     </tr>
@@ -450,6 +517,24 @@ export const Reportes: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-xs text-secondary/50 font-mono">
                           {new Date(e.fecha).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => navigate(`/evaluaciones/${e.id}/editar`)}
+                              className="p-1.5 text-primary hover:bg-primary/15 rounded transition-colors"
+                              title="Editar Calificación"
+                            >
+                              <Edit size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEval(e.id)}
+                              className="p-1.5 text-danger hover:bg-danger/15 rounded transition-colors"
+                              title="Eliminar Calificación"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
